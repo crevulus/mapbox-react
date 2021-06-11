@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 
-import ReactMapGL, { Marker } from "react-map-gl";
+import ReactMapGL, { Marker, FlyToInterpolator } from "react-map-gl";
 import useSupercluster from "./useSupercluster";
 import useSwr from "swr";
 
@@ -14,10 +14,12 @@ type ViewportType = {
   width: string;
   height: string;
   zoom: number;
+  transitionInterpolator?: any;
+  transitionDuration?: any;
 };
 
 export default function App() {
-  const [viewport, setViewport] = useState({
+  const [viewport, setViewport] = useState<ViewportType>({
     latitude: 52.6376,
     longitude: -1.135171,
     width: "100vw",
@@ -53,7 +55,21 @@ export default function App() {
     options: { radius: 75, maxZoom: 20 },
   });
 
-  console.log(clusters);
+  const handleClusterClick = (cluster: any) => {
+    const [longitude, latitude] = cluster.geometry.coordinates;
+    const expansionZoom = Math.min(
+      supercluster!.getClusterExpansionZoom(cluster.id),
+      20
+    ); // set to maxZoom of viewport
+    setViewport({
+      ...viewport,
+      latitude,
+      longitude,
+      zoom: expansionZoom,
+      transitionInterpolator: new FlyToInterpolator({ speed: 2 }),
+      transitionDuration: "auto",
+    });
+  };
 
   return (
     <div>
@@ -63,7 +79,7 @@ export default function App() {
         onViewportChange={(viewport: React.SetStateAction<ViewportType>) =>
           setViewport(viewport)
         }
-        maxZoom={15}
+        maxZoom={20}
         ref={mapRef}
       >
         {clusters &&
@@ -78,7 +94,14 @@ export default function App() {
                   latitude={parseFloat(latitude)}
                   longitude={parseFloat(longitude)}
                 >
-                  Cluster: {pointCount}
+                  <button
+                    style={{
+                      fontSize: `${20 + (pointCount / points.length) * 50}px`,
+                    }}
+                    onClick={() => handleClusterClick(cluster)}
+                  >
+                    Cluster: {pointCount}
+                  </button>
                 </Marker>
               );
             }
