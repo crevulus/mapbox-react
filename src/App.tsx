@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 
-import ReactMapGL, { Marker, Popup, FlyToInterpolator } from "react-map-gl";
-
+import ReactMapGL, { Marker } from "react-map-gl";
 import useSupercluster from "./useSupercluster";
+import useSwr from "swr";
 
-import * as data from "./skateboard-parks.json";
+const fetcher = (...args: any[]) =>
+  //@ts-ignore
+  fetch(...args).then((response) => response.json());
 
 type ViewportType = {
   latitude: number;
@@ -16,32 +18,42 @@ type ViewportType = {
 
 export default function App() {
   const [viewport, setViewport] = useState({
-    latitude: 45.4211,
-    longitude: -75.6903,
+    latitude: 52.6376,
+    longitude: -1.135171,
     width: "100vw",
     height: "100vh",
-    zoom: 10,
+    zoom: 12,
   });
-  const [selectedPark, setSelectedPark] = useState<any>(null);
-  const mapRef = useRef();
+  const mapRef = useRef<any | null>(null);
 
-  const handleSelectPark = (e: any, park: any) => {
-    e.preventDefault();
-    setSelectedPark(park);
-  };
+  const url =
+    "https://data.police.uk/api/crimes-street/all-crime?lat=52.629729&lng=-1.131592&date=2019-10";
+  const { data, error } = useSwr(url, { fetcher });
+  const crimes = data && !error ? data.slice(0, 2000) : [];
+  const points = crimes.map((crime: any) => ({
+    type: "Feature",
+    properties: { cluster: false, crimeId: crime.id, category: crime.category },
+    geometry: {
+      type: "Point",
+      coordinates: [
+        parseFloat(crime.location.longitude),
+        parseFloat(crime.location.latitude),
+      ],
+    },
+  }));
 
-  const handleClosePopup = () => {
-    setSelectedPark(null);
-  };
+  const bounds = mapRef.current
+    ? mapRef.current.getMap().getBounds().toArray().flat()
+    : null;
 
-  useEffect(() => {
-    const listener = (e: any) => {
-      if (e.key === "Escape") {
-        setSelectedPark(null);
-      }
-    };
-    window.addEventListener("keydown", listener);
-  }, []);
+  const { clusters, supercluster } = useSupercluster({
+    points,
+    bounds,
+    zoom: viewport.zoom,
+    options: { radius: 75, maxZoom: 20 },
+  });
+
+  console.log(clusters);
 
   return (
     <div>
@@ -51,29 +63,35 @@ export default function App() {
         onViewportChange={(viewport: React.SetStateAction<ViewportType>) =>
           setViewport(viewport)
         }
-        maxZoom={12}
+        maxZoom={15}
+        ref={mapRef}
       >
-        {data.features.map((park) => (
-          <Marker
-            key={park.properties.PARK_ID}
-            longitude={park.geometry.coordinates[0]}
-            latitude={park.geometry.coordinates[1]}
-          >
-            <button onClick={(e) => handleSelectPark(e, park)}>
-              {park.properties.PARK_ID}
-            </button>
-          </Marker>
-        ))}
-        {/* {data.features.map((park) => (
-          <Popup
-            longitude={park?.geometry.coordinates[0]}
-            latitude={park?.geometry.coordinates[1]}
-            onClose={handleClosePopup}
-          >
-            <h2>{park.properties.NAME}</h2>
-            <p>{park.properties.DESCRIPTIO}</p>
-          </Popup>
-        ))} */}
+        {clusters &&
+          clusters?.map((cluster: any) => {
+            const [longitude, latitude] = cluster.geometry.coordinates;
+            const { cluster: isCluster, point_count: pointCount } =
+              cluster.properties;
+            if (isCluster) {
+              return (
+                <Marker
+                  key={cluster.id}
+                  latitude={parseFloat(latitude)}
+                  longitude={parseFloat(longitude)}
+                >
+                  Cluster: {pointCount}
+                </Marker>
+              );
+            }
+            return (
+              <Marker
+                key={cluster.properties.crimeId}
+                latitude={parseFloat(latitude)}
+                longitude={parseFloat(longitude)}
+              >
+                Naughty boi
+              </Marker>
+            );
+          })}
       </ReactMapGL>
     </div>
   );
