@@ -1,6 +1,13 @@
 import React, { useState, useRef } from "react";
 
-import ReactMapGL, { Marker, FlyToInterpolator } from "react-map-gl";
+import ReactMapGL, {
+  Marker,
+  FlyToInterpolator,
+  Source,
+  Layer,
+  LayerProps,
+} from "react-map-gl";
+import { FeatureCollection, Geometry } from "geojson";
 import useSupercluster from "./useSupercluster";
 import useSwr from "swr";
 
@@ -8,9 +15,36 @@ const fetcher = (...args: any[]) =>
   //@ts-ignore
   fetch(...args).then((response) => response.json());
 
+const route: FeatureCollection<Geometry> = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-1, 52.6376],
+          [0, 52.6376],
+        ],
+      },
+      properties: {},
+    },
+  ],
+};
+
+const layerStyle: LayerProps = {
+  id: "route",
+  source: "route",
+  type: "line",
+  paint: {
+    "line-width": 2,
+    "line-color": "#007cbf",
+  },
+};
+
 type ViewportType = {
-  latitude: number;
   longitude: number;
+  latitude: number;
   width: string;
   height: string;
   zoom: number;
@@ -20,8 +54,8 @@ type ViewportType = {
 
 export default function App() {
   const [viewport, setViewport] = useState<ViewportType>({
-    latitude: 52.6376,
     longitude: -1.135171,
+    latitude: 52.6376,
     width: "100vw",
     height: "100vh",
     zoom: 12,
@@ -82,6 +116,9 @@ export default function App() {
         maxZoom={20}
         ref={mapRef}
       >
+        <Source id="map-line" type="geojson" data={route}>
+          <Layer {...layerStyle} />
+        </Source>
         {clusters &&
           clusters?.map((cluster: any) => {
             const [longitude, latitude] = cluster.geometry.coordinates;
@@ -91,8 +128,8 @@ export default function App() {
               return (
                 <Marker
                   key={cluster.id}
-                  latitude={parseFloat(latitude)}
                   longitude={parseFloat(longitude)}
+                  latitude={parseFloat(latitude)}
                 >
                   <button
                     style={{
@@ -108,8 +145,8 @@ export default function App() {
             return (
               <Marker
                 key={cluster.properties.crimeId}
-                latitude={parseFloat(latitude)}
                 longitude={parseFloat(longitude)}
+                latitude={parseFloat(latitude)}
               >
                 Naughty boi
               </Marker>
